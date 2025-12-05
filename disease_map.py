@@ -4,8 +4,8 @@ import pandas as pd
 # ------------------------------------------
 # Load all horizon results
 # ------------------------------------------
-results_7  = pd.read_csv('/Users/shreyasramani/Downloads/7_day_forecast - Sheet1.csv')
-results_14 = pd.read_csv('/Users/shreyasramani/Downloads/14_day_forecast - Sheet1.csv')
+results_7  = pd.read_csv('7_day_forecast - Sheet1.csv')
+results_14 = pd.read_csv('14_day_forecast - Sheet1.csv')
 
 # Keep them in a dictionary for easy access
 horizon_map = {
