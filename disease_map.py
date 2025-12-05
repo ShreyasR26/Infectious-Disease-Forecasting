@@ -1,80 +1,89 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+from streamlit_plotly_events import plotly_events
 
-# ------------------------------------------
-# Load all horizon results
-# ------------------------------------------
-results_7  = pd.read_csv('7day.csv')
-results_14 = pd.read_csv('14day.csv')
+# ----------------------------
+# Load results
+# ----------------------------
+df7 = pd.read_csv("7day.csv")
+df14 = pd.read_csv("14day.csv")
 
-# Keep them in a dictionary for easy access
-horizon_map = {
-    "7-Day Forecast": results_7,
-    "14-Day Forecast": results_14,
+# State abbreviation lookup
+state_lookup = {
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+    "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+    "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+    "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH",
+    "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY", "North Carolina": "NC",
+    "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA",
+    "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD", "Tennessee": "TN",
+    "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
+    "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
 }
 
-# ------------------------------------------
-# Streamlit UI
-# ------------------------------------------
-st.title("SNN Regional Disease Forecasting Dashboard")
+df7["abbrev"] = df7["state"].map(state_lookup)
+df14["abbrev"] = df14["state"].map(state_lookup)
 
-state = st.selectbox("Select a State", results_7["state"].unique())
+st.title("Interactive Regional SNN Forecasting Map")
 
-horizon = st.radio(
-    "Select Forecast Horizon:",
-    ["7-Day Forecast", "14-Day Forecast"],
-    horizontal=True
+st.write("Click a state on the map to view **7-day and 14-day** forecasts and module contributions.")
+
+# ----------------------------
+# One Map Only
+# ----------------------------
+fig = px.choropleth(
+    df7,
+    locations="abbrev",
+    locationmode="USA-states",
+    color="RMSE_7",
+    hover_name="state",
+    color_continuous_scale="RdYlGn_r",
+    scope="usa",
+    title="Click a State to View Forecast Details"
 )
 
-df = horizon_map[horizon]
-row = df[df["state"] == state].iloc[0]
+# This renders the map *and* captures click events
+clicked = plotly_events(fig, click_event=True, hover_event=False)
 
-# ------------------------------------------
-# Display Forecast Accuracy Metrics
-# ------------------------------------------
-st.subheader(f"{horizon} — Forecasting Performance ({state})")
+# ----------------------------
+# Show results when a state is clicked
+# ----------------------------
+if clicked:
+    # Get row index from pointIndex
+    idx = clicked[0]["pointIndex"]
+    abbrev = df7.iloc[idx]["abbrev"]
 
-mae_col = [col for col in row.index if "MAE" in col][0]
-rmse_col = [col for col in row.index if "RMSE" in col][0]
+    # Convert abbrev to state name
+    state_name = [s for s, a in state_lookup.items() if a == abbrev][0]
 
-st.metric("MAE", f"{row[mae_col]:.3f}")
-st.metric("RMSE", f"{row[rmse_col]:.3f}")
+    st.subheader(f"Forecasting Results for {state_name}")
 
-# ------------------------------------------
-# Module Contributions
-# ------------------------------------------
-st.subheader("Module Contribution Scores")
+    r7 = df7[df7["state"] == state_name].iloc[0]
+    r14 = df14[df14["state"] == state_name].iloc[0]
 
-contrib = {
-    "Temporal": row["temporal"],
-    "Mobility": row["mobility"],
-    "Vaccination": row["vaccine"],
-    "Environment": row["environment"]
-}
+    # 7-day
+    st.markdown("### 🟦 7-Day Forecast")
+    st.write(f"**MAE:** {r7['MAE_7']:.3f}")
+    st.write(f"**RMSE:** {r7['RMSE_7']:.3f}")
+    st.write("**Module Contributions:**")
+    st.json({
+        "Temporal": r7["temporal"],
+        "Mobility": r7["mobility"],
+        "Vaccination": r7["vaccine"],
+        "Environment": r7["environment"]
+    })
 
-st.bar_chart(pd.DataFrame.from_dict(contrib, orient="index", columns=["Contribution"]))
-
-# ------------------------------------------
-# Narrative Interpretation
-# ------------------------------------------
-st.subheader("Interpretation")
-
-if "7-Day" in horizon:
-    st.write(
-        f"For short-term (7-day) forecasts, predictions for **{state}** are influenced "
-        "most strongly by temporal momentum and vaccination/environment features, "
-        "with moderate influence from mobility."
-    )
-
-elif "14-Day" in horizon:
-    st.write(
-        f"At the 14-day horizon, the SNN begins shifting away from pure temporal momentum. "
-        "Vaccination and mobility signals increase in importance, indicating that "
-        "medium-range forecasts rely more on behavioral trends and immunity levels."
-    )
-
-else:
-    st.write(
-        "Vaccination becomes the dominant driver for **{state}**, reflecting "
-        "its stabilizing effect on long-term transmission dynamics."
-    )
+    # 14-day
+    st.markdown("### 🟧 14-Day Forecast")
+    st.write(f"**MAE:** {r14['MAE_14']:.3f}")
+    st.write(f"**RMSE:** {r14['RMSE_14']:.3f}")
+    st.write("**Module Contributions:**")
+    st.json({
+        "Temporal": r14["temporal"],
+        "Mobility": r14["mobility"],
+        "Vaccination": r14["vaccine"],
+        "Environment": r14["environment"]
+    })
